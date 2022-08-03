@@ -13,6 +13,9 @@
 
 #define ROOMBA_WAKEUP D6
 
+
+
+const int noSleepPin = 2;
 struct Sensors
 {
   bool hasData;
@@ -106,13 +109,18 @@ int signed2BytesInt(int highByte, int lowByte)
 void wakeUp() 
 {
   debugV("Waking up...");
-  pinMode(ROOMBA_WAKEUP, OUTPUT);
-  delay(100);
-  digitalWrite(ROOMBA_WAKEUP, HIGH);
-  delay(100);
-  digitalWrite(ROOMBA_WAKEUP, LOW);
+  pinMode(noSleepPin, OUTPUT);
+  delay(1000);
+  digitalWrite(noSleepPin, HIGH);
+  delay(1000);
+  digitalWrite(noSleepPin, LOW);
+  delay(1000);
+  digitalWrite(noSleepPin, HIGH);
+  delay(1000);
+  digitalWrite(noSleepPin, LOW);
+  pinMode(LED_BUILTIN, OUTPUT);             //  turn off the built-in LED
+  digitalWrite(LED_BUILTIN, OUTPUT);        //  to save a bit of power
   delay(500);
-  digitalWrite(ROOMBA_WAKEUP, HIGH);
   debugV("Wakeup complete!");
 }
 
@@ -186,7 +194,7 @@ bool updateTime()
     Serial.write(day);
     Serial.write(hour);
     Serial.write(minutes);
-     debugV("Updating time success (%d:%d:%d)", day, hour, minutes);
+    debugV("Updating time success (%d:%d:%d)", day, hour, minutes);
   }
 
   return result;
@@ -205,20 +213,25 @@ Sensors updateSensors() {
   // 25 - Battery charge, 2 bytes | 22-23
   // 26 - Battery capacity, 2 bytes | 24-25
   
+  
+  wakeUp();  
   flush();
+
 
   debugV("Updating sensors start...");
   Serial.write(128);
+  delay(1000);
   Serial.write(142);
+  delay(1000);
   Serial.write(6);
-
-  delay(100);
+  delay(1000);
+  
  
   int i = Serial.available();
   char sensorbytes[100];
   if(i > 0) {
     Serial.readBytes(sensorbytes, i);
-
+    debugV("sensorbytes:", sensorbytes);
     sensors.hasData = true;
     sensors.bytesRead = i;
     sensors.bumpRight = sensorbytes[0] & 1;
@@ -368,7 +381,7 @@ void publishHomeAssistantAutoDiscovery(String uniqueId, String name, String valu
   serializeJson(doc, str);
   String topic = "homeassistant/" + topicType + "/" + fullId + "/config";
   mqttClient.publish(topic.c_str(), str.c_str(), true);
-  debugV("Auto discovery info published to MQTT!");
+  debugV("Auto discovery info published to MQTT");
 }
 
 void onMQTTMessage(char* topic, byte* payload, unsigned int length) 
@@ -406,6 +419,7 @@ void connectMQTT()
       {
         debugV("MQTT connection sucessful, subscribing to command topic: %s", MQTT_COMMAND_TOPIC);
         mqttClient.subscribe(MQTT_COMMAND_TOPIC);
+        debugV("Just subscribed...!");
         mqttClient.publish(MQTT_AVAILABILITY_TOPIC, "online", true);
         publishHomeAssistantAutoDiscovery("", "", "", "", "", "vacuum", true);
         publishHomeAssistantAutoDiscovery("state", "State", "state", "", "", "sensor", false);
@@ -428,7 +442,9 @@ void connectWifi()
   while (WiFi.status() != WL_CONNECTED) 
   {
     delay(WIFI_RECONNECT_DELAY);
+//    debugV("Wifi not yet connected");
   }
+//  debugV("Wifi now connected to ", WIFI_SSID, " and hostname ", WIFI_CLIENT_NAME);
 }
 
 void startOTA()
@@ -440,6 +456,7 @@ void startOTA()
 
 void startMQTT()
 {
+  debugV("Starting MQTT ...");
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setCallback(onMQTTMessage);
   mqttClient.setBufferSize(MQTT_BUFFER_SIZE);
@@ -454,13 +471,15 @@ void startDebug()
 }
 
 void setup() {
+//  pinMode(noSleepPin, OUTPUT);
+//  digitalWrite(noSleepPin, HIGH);
   Serial.begin(115200);
-  Serial.swap();
-
+//  Serial.swap();
   connectWifi();
+  delay(1000);
   startDebug();
+  delay(1000); 
   startOTA();
-  wakeUp();
   startMQTT();
   updateTime();
 
