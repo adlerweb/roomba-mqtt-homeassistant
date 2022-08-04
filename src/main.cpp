@@ -108,7 +108,6 @@ int signed2BytesInt(int highByte, int lowByte)
 
 void wakeUp() 
 {
-  debugV("Waking up...");
   pinMode(noSleepPin, OUTPUT);
   delay(1000);
   digitalWrite(noSleepPin, HIGH);
@@ -121,7 +120,7 @@ void wakeUp()
   pinMode(LED_BUILTIN, OUTPUT);             //  turn off the built-in LED
   digitalWrite(LED_BUILTIN, OUTPUT);        //  to save a bit of power
   delay(500);
-  debugV("Wakeup complete!");
+  debugV("Wakeup complete");
 }
 
 void clean() {
@@ -214,16 +213,14 @@ Sensors updateSensors() {
   // 26 - Battery capacity, 2 bytes | 24-25
   
   
-  wakeUp();  
+ // wakeUp();  
   flush();
 
-
-  debugV("Updating sensors start...");
-  Serial.write(128);
+  Serial.write(128);            // opcode start roomba OI
   delay(1000);
-  Serial.write(142);
+  Serial.write(142);            // opcode "get sensor packet"
   delay(1000);
-  Serial.write(6);
+  Serial.write(6);              // opcode "all sensor data"
   delay(1000);
   
  
@@ -253,10 +250,10 @@ Sensors updateSensors() {
     sensors.batteryCharge = unsigned2BytesInt(sensorbytes[22],sensorbytes[23]);
     sensors.batteryCapacity = unsigned2BytesInt(sensorbytes[24], sensorbytes[25]);
     sensors.batteryPercent = 100 * sensors.batteryCharge / sensors.batteryCapacity;
-    debugV("Updating sensors success!");
+    debugV("sensors update SUCCESS");
   } else {
     sensors.hasData = false;
-    debugV("Updating sensors failed");
+    debugV("sensors update FAILED");
   }
 
   return sensors;
@@ -417,9 +414,8 @@ void connectMQTT()
      // Attempt to connect
       if (mqttClient.connect(MQTT_CLIENT_NAME, MQTT_USER, MQTT_PASSWORD, MQTT_AVAILABILITY_TOPIC, 0, true, "offline")) 
       {
-        debugV("MQTT connection sucessful, subscribing to command topic: %s", MQTT_COMMAND_TOPIC);
+        debugV("MQTT connection successful, subscribing to command topic: %s", MQTT_COMMAND_TOPIC);
         mqttClient.subscribe(MQTT_COMMAND_TOPIC);
-        debugV("Just subscribed...!");
         mqttClient.publish(MQTT_AVAILABILITY_TOPIC, "online", true);
         publishHomeAssistantAutoDiscovery("", "", "", "", "", "vacuum", true);
         publishHomeAssistantAutoDiscovery("state", "State", "state", "", "", "sensor", false);
@@ -442,9 +438,7 @@ void connectWifi()
   while (WiFi.status() != WL_CONNECTED) 
   {
     delay(WIFI_RECONNECT_DELAY);
-//    debugV("Wifi not yet connected");
   }
-//  debugV("Wifi now connected to ", WIFI_SSID, " and hostname ", WIFI_CLIENT_NAME);
 }
 
 void startOTA()
