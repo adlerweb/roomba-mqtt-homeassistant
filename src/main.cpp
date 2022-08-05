@@ -123,6 +123,21 @@ void wakeUp()
   debugV("Wakeup complete");
 }
 
+/*void backOffDock() 
+{
+  debugV("Sending 'backOffDock' commands to back away from the dock a few cm.");
+  Serial.write(128);                        //  start IO
+  delay(50);
+  Serial.write(131);                        //  safe mode
+  delay(50);
+  Serial.write(135);                        //  start cleaning cycle to back off dock
+  delay(200);                               //  is .2 sec enough to back up 1cm reliably?
+  Serial.write(133);                        //  stop cleaning cycle abruptly - we only want to back off a few cm
+  delay(50);
+//  Serial.write(143);                        //  seek dock - hopefully this will just be a nudge forward
+}
+*/
+
 void clean() {
   debugV("Sending 'clean' command");
   Serial.write(128);
@@ -151,8 +166,8 @@ void seekDock() {
   Serial.write(143);
 }
 
-void stop() {
-  debugV("Sending 'stop' command");
+void stop() {                                       // clarification: opcode 173 has just a one function, to turn off the OI
+  debugV("Sending 'stop' command");                 //                it is not for stopping a cleaning run
   Serial.write(128);
   delay(50);
   Serial.write(173);
@@ -386,12 +401,18 @@ void onMQTTMessage(char* topic, byte* payload, unsigned int length)
   String newTopic = topic;
   payload[length] = '\0';
   String command = String((char *)payload);
-  debugV("MQTT received command: %s", command.c_str());
+  debugV("MQTT received command: %s", command.c_str()); 
+  //    
+  //  There is an inconsistency in the naming and actions of the commands.  
+  //  On the HA side, "stop" sent through the MQTT has an intended meaning... probably to stop a cleaning run
+  //  On the roomba side of things, the "stop opcode" is a 173 serial command, which stops the OI
+  //  Since these are HA Commands, it has to be the powerOff command, which actually doesn't power it off, it just stops a cleaning run
+  //
   if (newTopic == MQTT_COMMAND_TOPIC) {
     wakeUp();
 
     // Official Home Assistant commands
-    if (command == "start" || command == "pause" || command == "start_pause" || command == "stop") {
+    if (command == "start" || command == "pause" || command == "start_pause") {
       clean();
     }
     else if (command == "clean_spot") {
@@ -400,8 +421,8 @@ void onMQTTMessage(char* topic, byte* payload, unsigned int length)
     else if (command == "return_to_base") {
       seekDock();
     }
-    else if (command == "turn_off") {
-      powerOff();
+    else if (command == "stop" || command == "turn_off") {        //  this effectively stops a cleaning run; not powering down or 
+      powerOff();                                                 //  shutting off the OI
     }
   }
 }
