@@ -123,7 +123,7 @@ void wakeUp()
   debugV("Wakeup complete");
 }
 
-/*void backOffDock() 
+void backOffDock() 
 {
   debugV("Sending 'backOffDock' commands to back away from the dock a few cm.");
   Serial.write(128);                        //  start IO
@@ -131,12 +131,10 @@ void wakeUp()
   Serial.write(131);                        //  safe mode
   delay(50);
   Serial.write(135);                        //  start cleaning cycle to back off dock
-  delay(200);                               //  is .2 sec enough to back up 1cm reliably?
+  delay(3700);                              //  is 3.7 sec enough to back up about .5 cm reliably?  yes
   Serial.write(133);                        //  stop cleaning cycle abruptly - we only want to back off a few cm
-  delay(50);
-//  Serial.write(143);                        //  seek dock - hopefully this will just be a nudge forward
+  delay(50);                                //  this in effect physically separates it from the charging base.
 }
-*/
 
 void clean() {
   debugV("Sending 'clean' command");
