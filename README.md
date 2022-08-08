@@ -2,6 +2,15 @@
 
 Smart Home integration some older pre-wifi Roomba robot vacuums (600,700,800 series). Tested and working on a Roomba 780.
 
+## Features
+ - HA/Lovelace control and status that actually works
+ - MQTT support
+ - Home Assistant Auto Discovery support
+ - OTA 
+ - NTP time sync
+ - Power-savings for longer battery life
+ - Li-Ion battery incompatibility fix with some older roombas, eg. the 780.
+ 
 ## Hardware
  - Any ESP8266 board with sufficient exposed GPIO pins.  The WeMos D1 Mini clones are great because of the USB-serial converter and reset button.  A bigger board will be rather difficult to put inside the vacuum, and the older ESP-01 may not have the exposed pins needed for some of the debugging.
  - mini-DIN-7 or -8 pin connector to connect to SCI port, or a custom-made solution
@@ -14,11 +23,5 @@ Smart Home integration some older pre-wifi Roomba robot vacuums (600,700,800 ser
 ## Knowledge
  - Soldering small electronics
  
-## Features
- - MQTT support
- - Home Assistant Auto Discovery support
- - OTA 
- - NTP time sync
- - Some power-saving tweaks to provide longer battery life
- 
+
  
