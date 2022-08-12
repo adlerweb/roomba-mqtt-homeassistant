@@ -9,7 +9,7 @@ Smart Home integration some older pre-wifi Roomba robot vacuums (600,700,800 ser
  - OTA 
  - NTP time sync
  - Power-savings for longer battery life
- - A basic software-based Battery Management System for the problems that some older roombas (eg. the 780), have when fitted with a Li-Ion battery.  This can help work around the "Err5 battery error wit 5 blinks".
+ - A basic software-based Battery Management System for the problems that some older roombas (eg. the 780), have when fitted with a Li-Ion battery.  This can help work around the "Err5 battery error with 5 blinks".
  
 ## Hardware
  - Any ESP8266 board with sufficient exposed GPIO pins.  The WeMos D1 Mini clones are great because of the USB-serial converter and reset button.  A bigger board will be rather difficult to put inside the vacuum, and the older ESP-01 may not have the exposed pins needed for some of the debugging.
