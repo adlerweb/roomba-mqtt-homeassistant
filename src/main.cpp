@@ -17,10 +17,11 @@
 
 const int noSleepPin = 2;
 
-//  Some global variables that pass the Sensor struct values needed for battery management
+//  Global variables through which to Pass various Sensor struct values needed for battery management
 int chargingStateP;
 int currentP;
 int voltageP;
+int temperatureP;
 unsigned int batteryPercentP;
 bool sensorsHasDataP;
 
@@ -118,25 +119,38 @@ int signed2BytesInt(int highByte, int lowByte)
 void wakeUp() 
 {
   pinMode(noSleepPin, OUTPUT);
-  delay(1000);
+  delay(100);
   digitalWrite(noSleepPin, HIGH);
-  delay(1000);
+  delay(100);
   digitalWrite(noSleepPin, LOW);
-  delay(1000);
+  delay(100);
   digitalWrite(noSleepPin, HIGH);
-  delay(1000);
+  delay(100);
   digitalWrite(noSleepPin, LOW);
   pinMode(LED_BUILTIN, OUTPUT);             //  turn off the built-in LED
   digitalWrite(LED_BUILTIN, OUTPUT);        //  to save a bit of power
-  delay(500);
+  delay(100);
   debugV("Wakeup complete");
+}
+
+
+void resetRoomba()
+{
+  wakeUp();
+  Serial.write(128);                        //  start IO
+  delay(50);
+  Serial.write(131);                        //  safe mode
+  delay(50);
+  Serial.write(7);                          //  reset Roomba
+  delay(50); 
+  Serial.write(128);                        //  restart IO
 }
 
 
 
 void oneCmBackward()                          // assumes we are on the dock - should really test states
 {
-  debugV("Sending 'oneCmBackward' command to back away 1 cm [from the dock]");
+  debugV("Sending 'oneCmBackward' command to back away 1 cm [from the dock]to disengage charging");
   // we should really check here to see if it is actually docked or not... also think about power cord...
   Serial.write(128);                        //  start IO
   delay(50);
@@ -151,7 +165,7 @@ void oneCmBackward()                          // assumes we are on the dock - sh
   Serial.write(128);  
   delay(50); 
   Serial.write(0);  
-  delay(500);                               // perform the above-specified move for .5 second
+  delay(600);                               // perform the above-specified move for .600 second
   Serial.write(133);                        // and now "power down"  (stop movement & go to sleep)                        
 }
 
@@ -159,7 +173,7 @@ void oneCmBackward()                          // assumes we are on the dock - sh
 
 void oneCmForward()                          // assumes we are on the dock - should really test states
 {
-  debugV("Sending 'oneCmForward' commands to move forward 1cm [back onto the dock]");
+  debugV("Sending 'oneCmForward' commands to move forward 1cm [onto the dock again for charging]");
   // we should really check here to see if it is actually docked or not... also think about power cord...
   Serial.write(128);                        //  start IO
   delay(50);
@@ -174,7 +188,7 @@ void oneCmForward()                          // assumes we are on the dock - sho
   Serial.write(128);  
   delay(50); 
   Serial.write(0);  
-  delay(550);                               // perform the above-specified move for .55 second - want to nudge the backstop
+  delay(700);                               // perform the above-specified move for .700 second - want to nudge the backstop
   Serial.write(133);                        // and now "power down"  (stop movement & go to sleep)                        
 }
 
@@ -185,16 +199,24 @@ void manageBattery()              // only perform the tests if there is fresh da
   if (sensorsHasDataP)
   { 
     debugV("charging state %d, voltage %d, current %d, and battery %d", chargingStateP, voltageP, currentP, batteryPercentP);
-//    if (voltageP > 19000 && batteryPercentP == 100) 
-    if (voltageP > 19000 && currentP <= 0) 
+    
+    if (temperatureP > 14 && chargingStateP == 2)
+    {
+     debugV("Resetting Roomba because the charging system is engaged and registering temperature > 14");
+     resetRoomba();
+     debugV("... and backing away 1 cm from charger to disconnect.");
+     oneCmBackward();
+    }
+    
+    if (voltageP > VOLTAGE_HIGH_THRESHOLD && currentP <= 0 && chargingStateP == 2 && batteryPercentP >= MIN_CEASE_CHARGING_BATTERY_LEVEL) 
     {
       debugV("Backing off charging dock due to voltage, current and battery percent");
-      debugV("current %d, voltage %d and battery %d ", currentP, voltageP, batteryPercentP);
+      debugV("charging state %d, current %d, voltage %d and battery %d ", chargingStateP, currentP, voltageP, batteryPercentP);
       oneCmBackward();
     }
-    if (batteryPercentP <= 97 && chargingStateP == 4)
+    if (batteryPercentP <= MIN_IDLE_BATTERY_LEVEL && chargingStateP == 4 && currentP >= MIN_CLEANING_CURRENT)   // not fully charged, not on charger, not running
     {
-      debugV("Returning to charging dock due below 98% and being 'Waiting'");
+      debugV("Returning to charging dock due below MIN_IDLE_BATTERY_LEVEL and being 'Waiting'");
       debugV("battery Percent %d, charging state %d", batteryPercentP, chargingStateP);
       oneCmForward();
     }
@@ -283,8 +305,11 @@ bool updateTime()
     delay(50);
 
     Serial.write(168);
+    delay(50);    
     Serial.write(day);
+    delay(50);
     Serial.write(hour);
+    delay(50);
     Serial.write(minutes);
     debugV("Updating time success (%d:%d:%d)", day, hour, minutes);
   }
@@ -307,16 +332,14 @@ Sensors updateSensors() {
   // 25 - Battery charge, 2 bytes | 22-23
   // 26 - Battery capacity, 2 bytes | 24-25
   
-  
- // wakeUp();  
   flush();
 
   Serial.write(128);            // opcode start roomba OI
-  delay(1000);
+  delay(100);
   Serial.write(142);            // opcode "get sensor packet"
-  delay(1000);
+  delay(100);
   Serial.write(6);              // opcode "all sensor data"
-  delay(1000);
+  delay(100);
   
  
   int i = Serial.available();
@@ -349,14 +372,16 @@ Sensors updateSensors() {
     currentP = sensors.current;
     chargingStateP = sensors.chargingState;
     batteryPercentP = sensors.batteryPercent;
+    temperatureP = sensors.temperature;
     sensorsHasDataP = sensors.hasData;
   } else {
     sensors.hasData = false;
     sensorsHasDataP = sensors.hasData;
-    debugV("sensors update FAILED");                // this is the normal/expected behavior when the roomba is not awake
+    debugV("sensors update FAILED");                // this is the normal/expected behavior/output when the roomba is not awake
   }
 
   return sensors;
+
 }
 
 
@@ -506,7 +531,7 @@ void onMQTTMessage(char* topic, byte* payload, unsigned int length)
     wakeUp();
 
     // Official Home Assistant commands
-    if (command == "start" || command == "pause" || command == "start_pause") {
+    if (command == "start" || command == "pause" || command == "start_pause" || command == "turn_on") {
       clean();
     }
     else if (command == "clean_spot") {
@@ -515,7 +540,7 @@ void onMQTTMessage(char* topic, byte* payload, unsigned int length)
     else if (command == "return_to_base") {
       seekDock();
     }
-    else if (command == "stop" || command == "turn_off") {        //  this effectively stops a cleaning run; not powering down or 
+    else if (command == "stop" || command == "turn_off") {        //  this effectively stops a cleaning run; it doesn't power down or 
       powerOff();                                                 //  shutting off the OI
     }
   }
@@ -596,16 +621,16 @@ void setup() {
   Serial.begin(115200);
 //  Serial.swap();
   connectWifi();
-  delay(1000);
+//  delay(1000);
   startDebug();
-  delay(1000); 
+//  delay(1000); 
   startOTA();
   startMQTT();
   updateTime();
 
   timer.setInterval(ROOMBA_WAKEUP_INTERVAL, wakeUp);
   timer.setInterval(MQTT_PUBLISH_INTERVAL, publishSensorsInformation);
-  timer.setInterval(60000, manageBattery);
+  timer.setInterval(BATTERY_CHECK_INTERVAL, manageBattery);           // if using only Ni-Cd batteries, you can disable this function call
 }
 
 
