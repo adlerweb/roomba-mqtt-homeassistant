@@ -200,9 +200,9 @@ void manageBattery()              // only perform the tests if there is fresh da
   { 
     debugV("charging state %d, voltage %d, current %d, and battery %d", chargingStateP, voltageP, currentP, batteryPercentP);
     
-    if (temperatureP > 14 && chargingStateP == 2)
+    if (temperatureP > 14)
     {
-     debugV("Resetting Roomba because the charging system is engaged and registering temperature > 14");
+     debugV("Resetting Roomba because the charging system is registering temperature > 14");
      resetRoomba();
      debugV("... and backing away 1 cm from charger to disconnect.");
      oneCmBackward();
