@@ -1,3 +1,5 @@
+//  For Roomba 780 with slighly incompatible Li-Ion Battery
+
 // WiFi Settings
 const char* WIFI_CLIENT_NAME = "Roomba-780";
 const char* WIFI_SSID = "My-IoT-Wifi-24GHz";
