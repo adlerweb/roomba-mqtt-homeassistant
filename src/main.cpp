@@ -1,6 +1,17 @@
 #include "Arduino.h"
-#include "ESP8266WiFi.h"
-#include <ESP8266mDNS.h>
+
+#if defined ESP8266 || defined ESP32
+  #if defined ESP8266
+    #include <ESP8266WiFi.h>
+    #include <ESP8266mDNS.h>
+  #elif defined ESP32
+    #include <WiFi.h>
+    #include <ESPmDNS.h>
+  #endif  // ESP32
+#else
+  #error "The board must be ESP8266 or ESP32"
+#endif  // ESP
+
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include "PubSubClient.h"
