@@ -471,7 +471,7 @@ void publishSensorsInformation() {
   Sensors sensors = updateSensors();
   if(sensors.hasData) {
 
-    StaticJsonDocument<500> doc;
+    JsonDocument doc;
     
     String state = getState(sensors);
     doc["state"] = state;
@@ -509,7 +509,7 @@ void publishSensorsInformation() {
 
 void publishHomeAssistantAutoDiscovery(String uniqueId, String name, String valueTemplate, String deviceClass, String unitOfMeasurement, String topicType, bool isVacuum)
 {
-  DynamicJsonDocument doc(500);
+  JsonDocument doc;
   String fullName;
   String fullId;
   if(name == "") {
@@ -541,7 +541,7 @@ void publishHomeAssistantAutoDiscovery(String uniqueId, String name, String valu
     doc["unit_of_measurement"] = unitOfMeasurement;
   }
 
-  JsonObject device = doc.createNestedObject("device");
+  JsonObject device = doc["device"].to<JsonObject>();
 
   if(isVacuum) {
     device["manufacturer"] = HASS_MANUFACTURER;
@@ -549,8 +549,8 @@ void publishHomeAssistantAutoDiscovery(String uniqueId, String name, String valu
     device["name"] = HASS_NAME;
     device["sw_version"] = HASS_VERSION;
 
-    JsonArray connections = device.createNestedArray("connections");
-    JsonArray connection = connections.createNestedArray();
+    JsonArray connections = device["connections"].to<JsonArray>();
+    JsonArray connection = connections.add<JsonArray>();
     connection.add("mac");
     connection.add(WiFi.macAddress());
 
@@ -558,7 +558,7 @@ void publishHomeAssistantAutoDiscovery(String uniqueId, String name, String valu
     device["via_device"] = HASS_UNIQUE_ID;
   }
   
-  JsonArray identifiers = device.createNestedArray("identifiers");
+  JsonArray identifiers = device["identifiers"].to<JsonArray>();
   identifiers.add(HASS_UNIQUE_ID);
 
   String str;
