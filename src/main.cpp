@@ -17,14 +17,17 @@
 #include "PubSubClient.h"
 #include "SimpleTimer.h"
 #include <ArduinoJson.h>
-#include <RemoteDebug.h>
 #include <NTPClient.h>
-
 #include "secrets.h"
 
+#if defined(CONFIG_IDF_TARGET_ESP32C3)
+    HardwareSerial RoombaSerial(0);  // Use HardwareSerial on ESP32-C3 for device data
+    #define DEBUG_SERIAL Serial      // Use Serial for debugging on ESP32-C3
+#else
+    #define RoombaSerial Serial      // Use Serial for device data on ESP32 and ESP8266
+#endif
+
 #define ROOMBA_WAKEUP D6
-
-
 
 const int noSleepPin = 2;
 
@@ -66,33 +69,8 @@ struct Sensors
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 SimpleTimer timer;
-RemoteDebug Debug;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
-
-/* 
-def _twosComplementInt2bytes( highByte, lowByte ):
-    """ returns an int which has the same value
-    as the twosComplement value stored in
-    the two bytes passed in
-    
-    the output range should be -32768 to 32767
-    
-    chars or ints can be input, both will be
-    truncated to 8 bits
-    """
-    # take everything except the top bit
-    topbit = _bitOfByte( 7, highByte )
-    lowerbits = highByte & 127
-    unsignedInt = lowerbits << 8 | (lowByte & 0xFF)
-    if topbit == 1:
-        # with sufficient thought, I've convinced
-        # myself of this... we'll see, I suppose.
-        return unsignedInt - (1 << 15)
-    else:
-        return unsignedInt
-
-*/
 
 int getBitFromByte(int byte, int bit)
 {
@@ -146,199 +124,137 @@ void wakeUp()
   pinMode(LED_BUILTIN, OUTPUT);             //  turn off the built-in LED
   digitalWrite(LED_BUILTIN, OUTPUT);        //  to save a bit of power
   delay(100);
-  debugV("Wakeup complete");
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Wakeup complete");
+  #endif
 }
 
 
 void resetRoomba()
 {
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Reset");
+  #endif
   wakeUp();
-  Serial.write(128);                        //  start IO
+  RoombaSerial.write(128);                        //  start IO
   delay(50);
-  Serial.write(131);                        //  safe mode
+  RoombaSerial.write(131);                        //  safe mode
   delay(50);
-  Serial.write(7);                          //  reset Roomba
+  RoombaSerial.write(7);                          //  reset Roomba
   delay(50); 
-  Serial.write(128);                        //  restart IO
+  RoombaSerial.write(128);                        //  restart IO
 }
-
-
-
-void oneCmBackward()                          // assumes we are on the dock - should really test states
-{
-  debugV("Sending 'oneCmBackward' command to back away 1 cm [from the dock]to disengage charging");
-  // we should really check here to see if it is actually docked or not... also think about power cord...
-  Serial.write(128);                        //  start IO
-  delay(50);
-  Serial.write(131);                        //  safe mode
-  delay(50);
-  Serial.write(137);                        //  Signal opening of drive sequence (p13 of Roomba OI Spec)
-  delay(50);
-  Serial.write(255);                        //  drive backward 30mm/sec w/ infinite radius (straight)
-  delay(50);   
-  Serial.write(226);  
-  delay(50); 
-  Serial.write(128);  
-  delay(50); 
-  Serial.write(0);  
-  delay(600);                               // perform the above-specified move for .600 second
-  Serial.write(133);                        // and now "power down"  (stop movement & go to sleep)                        
-}
-
-
-
-void oneCmForward()                          // assumes we are on the dock - should really test states
-{
-  debugV("Sending 'oneCmForward' commands to move forward 1cm [onto the dock again for charging]");
-  // we should really check here to see if it is actually docked or not... also think about power cord...
-  Serial.write(128);                        //  start IO
-  delay(50);
-  Serial.write(131);                        //  safe mode
-  delay(50);
-  Serial.write(137);                        //  Signal opening of drive sequence (p13 of Roomba OI Spec) opcode 137 + 4 operands
-  delay(50);
-  Serial.write(0);                          //  drive forward 30mm/sec w/ infinite radius (straight)
-  delay(50);   
-  Serial.write(30);  
-  delay(50); 
-  Serial.write(128);  
-  delay(50); 
-  Serial.write(0);  
-  delay(700);                               // perform the above-specified move for .700 second - want to nudge the backstop
-  Serial.write(133);                        // and now "power down"  (stop movement & go to sleep)                        
-}
-
 
 
 void unDock() {                             //  pivot backwards then forwards [ un-Dock ]
-  Serial.write(131);                        //  Safe mode
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Undock");
+  #endif
+  RoombaSerial.write(131);                        //  Safe mode
   delay(50); 
-  Serial.write(137);                        //  Signal opening of drive sequence (p13 of Roomba OI Spec)
+  RoombaSerial.write(137);                        //  Signal opening of drive sequence (p13 of Roomba OI Spec)
   delay(50);
-  Serial.write(255);                        //  drive backward 2 sec @ 100mm/sec w/ -30 radius (negative radius signifies right-side center)
+  RoombaSerial.write(255);                        //  drive backward 2 sec @ 100mm/sec w/ -30 radius (negative radius signifies right-side center)
   delay(50);   
-  Serial.write(100);  
+  RoombaSerial.write(100);  
   delay(50); 
-  Serial.write(255);  
+  RoombaSerial.write(255);  
   delay(50); 
-  Serial.write(30);  
+  RoombaSerial.write(30);  
   delay(2000);
-  Serial.write(137);                        //  Signal opening of drive sequence (p13 of Roomba OI Spec)
+  RoombaSerial.write(137);                        //  Signal opening of drive sequence (p13 of Roomba OI Spec)
   delay(50);
-  Serial.write(0);                          //  drive forward 2 sec @ 100mm/sec w/ 30 radius (positive radius signifies left-side center)
+  RoombaSerial.write(0);                          //  drive forward 2 sec @ 100mm/sec w/ 30 radius (positive radius signifies left-side center)
   delay(50);   
-  Serial.write(100);  
+  RoombaSerial.write(100);  
   delay(50); 
-  Serial.write(0);  
+  RoombaSerial.write(0);  
   delay(50); 
-  Serial.write(30);  
+  RoombaSerial.write(30);  
   delay(2000);
 }
-
-
-
-void manageBattery()                                                  // Battery Management System (only for charger-incompatible Li-Ion batteries)
-{
-  if (sensorsHasDataP)                                                // only perform the tests if there is fresh data
-  { 
-    debugV("charging state %d, voltage %d, current %d, and battery %d", chargingStateP, voltageP, currentP, batteryPercentP);
-    
-    if ((temperatureP > 14 && chargingStateP == 2) || (temperatureP > 14 && chargingStateP == 4))
-    {
-     debugV("Resetting Roomba because the charging system is engaged and is the battery is registering temperature > 14");
-     resetRoomba();
-     debugV("... and backing away 1 cm from charger to disconnect.");
-     oneCmBackward();
-     isAtDock = true;                                                 // was charging; now disconnected but at dock
-    }
-    
-    if (voltageP > VOLTAGE_HIGH_THRESHOLD && currentP <= 0 && chargingStateP == 2 && batteryPercentP >= MIN_CEASE_CHARGING_BATTERY_LEVEL) 
-    {
-      debugV("Backing off charging dock due to voltage, current and battery percent");
-      debugV("charging state %d, current %d, voltage %d and battery %d ", chargingStateP, currentP, voltageP, batteryPercentP);
-      oneCmBackward();
-      isAtDock = true;                                                // was charging; now disconnected but at dock
-    }
-    
-    if (batteryPercentP <= MIN_IDLE_BATTERY_LEVEL && chargingStateP == 4 && currentP >= MIN_CLEANING_CURRENT)   // not fully charged, not on charger, not running
-    {
-      debugV("Returning to charging dock due below MIN_IDLE_BATTERY_LEVEL and being 'Waiting'");
-      debugV("battery Percent %d, charging state %d", batteryPercentP, chargingStateP);
-      oneCmForward();
-//      isAtDock = true;                                              // wasn't charging; now reconnected to charging at dock
-    }
-    
-  }
-}
-
 
 
 void clean() {
-  debugV("Sending 'clean' command");
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Sending 'clean' command");
+  #endif
   wakeUp();
   if (isAtDock || isHomeP)                  // if at the Dock or on the Dock, unDock before starting cleaning run
   {
     unDock();
   }
-  Serial.write(128);
+  RoombaSerial.write(128);
   delay(50);
-  Serial.write(135);                        // start cleaning
+  RoombaSerial.write(135);                        // start cleaning
 }
 
 
 
 void cleanMax() {
-  debugV("Sending 'cleanMax' command");
-  Serial.write(128);
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Sending 'cleanMax' command");
+  #endif
+  RoombaSerial.write(128);
   delay(50);
-  Serial.write(136);
+  RoombaSerial.write(136);
 }
 
 
 
 void cleanSpot() {
-  debugV("Sending 'cleanSpot' command");
-  Serial.write(128);
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Sending 'cleanSpot' command");
+  #endif
+  RoombaSerial.write(128);
   delay(50);
-  Serial.write(134);
+  RoombaSerial.write(134);
 }
 
 
 
 void seekDock() {
-  debugV("Sending 'seekDock' command");
-  Serial.write(128);
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Sending 'seekDock' command");
+  #endif
+  RoombaSerial.write(128);
   delay(50);
-  Serial.write(143);
+  RoombaSerial.write(143);
   isReturning = true;
 }
 
 
 
 void stop() {                                                         // clarification: opcode 173 has just a one function, to turn off the OI
-  debugV("Sending 'stop' command");                                   //                it is not for stopping a cleaning run
-  Serial.write(128);
+  #ifdef DEBUG_SERIAL                                                 //                it is not for stopping a cleaning run
+    DEBUG_SERIAL.println("Sending 'stop' command");
+  #endif
+  RoombaSerial.write(128);
   delay(50);
-  Serial.write(173);
+  RoombaSerial.write(173);
 }
 
 
 
 void powerOff() {
-  debugV("Sending 'powerOff' command");
-  Serial.write(128);
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Sending 'powerOff' command");
+  #endif
+  RoombaSerial.write(128);
   delay(50);
-  Serial.write(133);
+  RoombaSerial.write(133);
 }
 
 
 
 void flush() {
-  debugV("Flushing serial buffer");
-  int bytes = Serial.available();
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Flushing serial buffer");
+  #endif
+  int bytes = RoombaSerial.available();
   char buf[bytes];
   if(bytes > 0) {
-    Serial.readBytes(buf, bytes);
+    RoombaSerial.readBytes(buf, bytes);
   }
 }
 
@@ -346,7 +262,9 @@ void flush() {
 
 bool updateTime() 
 {
-  debugV("Updating time with NTP");
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Updating time with NTP");
+  #endif
   timeClient.begin();
   timeClient.setTimeOffset(NTP_TIME_OFFSET);
   bool result = timeClient.forceUpdate();
@@ -355,17 +273,19 @@ bool updateTime()
     int hour = timeClient.getHours();
     int minutes = timeClient.getMinutes();
 
-    Serial.write(128);
+    RoombaSerial.write(128);
     delay(50);
 
-    Serial.write(168);
+    RoombaSerial.write(168);
     delay(50);    
-    Serial.write(day);
+    RoombaSerial.write(day);
     delay(50);
-    Serial.write(hour);
+    RoombaSerial.write(hour);
     delay(50);
-    Serial.write(minutes);
-    debugV("Updating time success (%d:%d:%d)", day, hour, minutes);
+    RoombaSerial.write(minutes);
+    #ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.printf("Updating time success (%d:%d:%d)\n", day, hour, minutes);
+    #endif
   }
 
   return result;
@@ -388,18 +308,18 @@ Sensors updateSensors() {
   
   flush();
 
-  Serial.write(128);            // opcode start roomba OI
+  RoombaSerial.write(128);            // opcode start roomba OI
   delay(100);
-  Serial.write(142);            // opcode "get sensor packet"
+  RoombaSerial.write(142);            // opcode "get sensor packet"
   delay(100);
-  Serial.write(6);              // opcode "all sensor data"
+  RoombaSerial.write(6);              // opcode "all sensor data"
   delay(100);
   
  
   int i = Serial.available();
   char sensorbytes[100];
   if(i > 0) {
-    Serial.readBytes(sensorbytes, i);
+    RoombaSerial.readBytes(sensorbytes, i);
     sensors.hasData = true;
     sensors.bytesRead = i;
     sensors.bumpRight = sensorbytes[0] & 1;
@@ -421,7 +341,10 @@ Sensors updateSensors() {
     sensors.batteryCharge = unsigned2BytesInt(sensorbytes[22],sensorbytes[23]);
     sensors.batteryCapacity = unsigned2BytesInt(sensorbytes[24], sensorbytes[25]);
     sensors.batteryPercent = 100 * sensors.batteryCharge / sensors.batteryCapacity;
-    debugV("sensors update SUCCESS");
+    
+    #ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.println("sensors update SUCCESS");
+    #endif
                                                           // some sensor Struct values that need to be passed for general use
     voltageP = sensors.voltage;
     currentP = sensors.current;
@@ -433,7 +356,9 @@ Sensors updateSensors() {
   } else {
     sensors.hasData = false;
     sensorsHasDataP = sensors.hasData;
-    debugV("sensors update FAILED");                      // this is the normal/expected behavior/output when the roomba is not awake
+    #ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.println("sensors update FAILED");
+    #endif                    // this is the normal/expected behavior/output when the roomba is not awake
   }
 
   return sensors;
@@ -512,7 +437,10 @@ void publishSensorsInformation() {
     String str;
     serializeJson(doc, str);
     mqttClient.publish(MQTT_STATE_TOPIC, str.c_str());
-    debugV("Sensors info published to MQTT");
+    #ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.println("Sensors info published to MQTT");
+        DEBUG_SERIAL.println(str);
+    #endif
   }
 }
 
@@ -576,7 +504,10 @@ void publishHomeAssistantAutoDiscovery(String uniqueId, String name, String valu
   serializeJson(doc, str);
   String topic = "homeassistant/" + topicType + "/" + fullId + "/config";
   mqttClient.publish(topic.c_str(), str.c_str(), true);
-  debugV("Auto discovery info published to MQTT");
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Auto discovery info published to MQTT");
+    DEBUG_SERIAL.println(str);
+  #endif
 }
 
 
@@ -586,8 +517,9 @@ void onMQTTMessage(char* topic, byte* payload, unsigned int length)
   String newTopic = topic;
   payload[length] = '\0';
   String command = String((char *)payload);
-  debugV("MQTT received command: %s", command.c_str()); 
-  //    
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.printf("MQTT received command: %s\n", command.c_str());
+  #endif
   //  There is an inconsistency in the naming and actions of the commands.  
   //  On the HA side, "stop" sent through the MQTT has an intended meaning... probably to stop a cleaning run
   //  On the roomba side of things, the "stop opcode" is a 173 serial command, which stops the OI
@@ -623,7 +555,7 @@ void connectMQTT()
      // Attempt to connect
       if (mqttClient.connect(MQTT_CLIENT_NAME, MQTT_USER, MQTT_PASSWORD, MQTT_AVAILABILITY_TOPIC, 0, true, "offline")) 
       {
-        debugV("MQTT connection successful, subscribing to command topic: %s", MQTT_COMMAND_TOPIC);
+        // Serial.printf("MQTT connection successful, subscribing to command topic: %s\n", MQTT_COMMAND_TOPIC);
         mqttClient.subscribe(MQTT_COMMAND_TOPIC);
         mqttClient.publish(MQTT_AVAILABILITY_TOPIC, "online", true);
         publishHomeAssistantAutoDiscovery("", "", "", "", "", "vacuum", true);
@@ -644,18 +576,36 @@ void connectMQTT()
 
 void connectWifi() 
 {
+    #ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.println();
+        DEBUG_SERIAL.print("Connecting to ");
+        DEBUG_SERIAL.print(WIFI_SSID);
+        DEBUG_SERIAL.print(" as ");
+        DEBUG_SERIAL.print(WIFI_CLIENT_NAME);
+    #endif
+  
   WiFi.hostname(WIFI_CLIENT_NAME);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) 
   {
+    #ifdef DEBUG_SERIAL
+        DEBUG_SERIAL.print(".");
+    #endif
     delay(WIFI_RECONNECT_DELAY);
   }
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println(" - OK!");
+  #endif
 }
 
 
 
 void startOTA()
 {
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Starting OTA");
+  #endif
   ArduinoOTA.setPort(OTA_PORT);
   ArduinoOTA.setHostname(OTA_HOST_NAME);
   ArduinoOTA.begin();
@@ -665,36 +615,78 @@ void startOTA()
 
 void startMQTT()
 {
-  debugV("Starting MQTT ...");
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Starting MQTT");
+  #endif
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setCallback(onMQTTMessage);
   mqttClient.setBufferSize(MQTT_BUFFER_SIZE);
   connectMQTT();
 }
 
-
-
-void startDebug()
-{
-  Debug.begin(WIFI_CLIENT_NAME);
-  Debug.setResetCmdEnabled(true);
-}
-
-
-
 void setup() {
   Serial.begin(115200);
+
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected.
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+
+  #ifdef DEBUG_SERIAL
+    DEBUG_SERIAL.println("Start scan");
+  #endif
+
+  // WiFi.scanNetworks will return the number of networks found.
+  #ifdef DEBUG_SERIAL
+    int n = WiFi.scanNetworks();
+    if (n == 0) {
+        DEBUG_SERIAL.println("no networks found");
+    } else {
+        DEBUG_SERIAL.print(n);
+        DEBUG_SERIAL.println(" networks found");
+        DEBUG_SERIAL.println("Nr | SSID                             | RSSI | CH | Encryption");
+        for (int i = 0; i < n; ++i) {
+        // Print SSID and RSSI for each network found
+        DEBUG_SERIAL.printf("%2d", i + 1);
+        DEBUG_SERIAL.print(" | ");
+        DEBUG_SERIAL.printf("%-32.32s", WiFi.SSID(i).c_str());
+        DEBUG_SERIAL.print(" | ");
+        DEBUG_SERIAL.printf("%4ld", WiFi.RSSI(i));
+        DEBUG_SERIAL.print(" | ");
+        DEBUG_SERIAL.printf("%2ld", WiFi.channel(i));
+        DEBUG_SERIAL.print(" | ");
+        switch (WiFi.encryptionType(i)) {
+          case WIFI_AUTH_OPEN:            DEBUG_SERIAL.print("open"); break;
+          case WIFI_AUTH_WEP:             DEBUG_SERIAL.print("WEP"); break;
+          case WIFI_AUTH_WPA_PSK:         DEBUG_SERIAL.print("WPA"); break;
+          case WIFI_AUTH_WPA2_PSK:        DEBUG_SERIAL.print("WPA2"); break;
+          case WIFI_AUTH_WPA_WPA2_PSK:    DEBUG_SERIAL.print("WPA+WPA2"); break;
+          case WIFI_AUTH_WPA2_ENTERPRISE: DEBUG_SERIAL.print("WPA2-EAP"); break;
+          case WIFI_AUTH_WPA3_PSK:        DEBUG_SERIAL.print("WPA3"); break;
+          case WIFI_AUTH_WPA2_WPA3_PSK:   DEBUG_SERIAL.print("WPA2+WPA3"); break;
+          case WIFI_AUTH_WAPI_PSK:        DEBUG_SERIAL.print("WAPI"); break;
+          default:                        DEBUG_SERIAL.print("unknown");
+        }
+        DEBUG_SERIAL.println();
+        delay(10);
+        }
+    }
+    DEBUG_SERIAL.println("");
+  #endif
+
+  // Delete the scan result to free memory for code below.
+  WiFi.scanDelete();
+
+  // Wait a bit before scanning again.
+  delay(1000);
+  
   connectWifi();
-  startDebug();
   startOTA();
   startMQTT();
   updateTime();
   timer.setInterval(ROOMBA_WAKEUP_INTERVAL, wakeUp);
   timer.setInterval(MQTT_PUBLISH_INTERVAL, publishSensorsInformation);
-  timer.setInterval(BATTERY_CHECK_INTERVAL, manageBattery);           // if using fully compatible batteries, then you can disable this function call
 }
-
-
 
 void loop() {
   // Reconnect if connection has been lost
@@ -702,8 +694,7 @@ void loop() {
     connectMQTT();
   }
 
-  mqttClient.loop();
-  timer.run();
   ArduinoOTA.handle();
-  Debug.handle();
+  timer.run();
+  mqttClient.loop();
 }
